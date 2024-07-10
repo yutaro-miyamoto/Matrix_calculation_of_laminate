@@ -19,9 +19,10 @@ void GyakuGyoretsu(double Q[3][3][100], int I);
 void Gyoretsu_Kakesan(double Q[3][3][100], double R[3][3][100], double result[3][3][100], int I);
 void Input(double A[3][3][100], int I);
 void Stress_Strain(double T_sigma[3][3][100], double Q[3][3][100], double T_epsilon[3][3][100], double result[3][3][100], int I);
-void In_plane_stiffness_matrix_function(double Q_bar[3][3][100], double Thickness[100], double In_plane_stiffness_matrix[3][3][100], int I);//Iは(1からn-1まで)
-void Tensile_bending_coupling_matrix_function(double Q_bar[3][3][100], double Thickness[100], double Tensile_bending_coupling_matrix[3][3][100], int I);//Iは(1からn-1まで)
-void Out_of_plane_stiffness_matrix_function(double Q_bar[3][3][100], double Thickness[100], double Out_of_plane_stiffness_matrix[3][3][100], int I);//Iは(1からn-1まで)
+void In_plane_stiffness_matrix_function(double Q_bar[3][3][100], double Thickness[100], double In_plane_stiffness_matrix[3][3][100], int I);//Iは(0からn-1まで)
+void Tensile_bending_coupling_matrix_function(double Q_bar[3][3][100], double Thickness[100], double Tensile_bending_coupling_matrix[3][3][100], int I);//Iは(0からn-1まで)
+void Out_of_plane_stiffness_matrix_function(double Q_bar[3][3][100], double Thickness[100], double Out_of_plane_stiffness_matrix[3][3][100], int I);//Iは(0からn-1まで)
+void Comparison_of_stress(double sigma_x, double sigma_y, double sigma_max, double sigma_min, double tau_max, double sigma_L[100], double sigma_T[100], double tau_LT[100], int n, int s);
 
 int main()
 {
@@ -56,7 +57,7 @@ int main()
 	{
 		int k;
 		k = s * n - i - 1;
-		if (s == 2)
+		if (s == 2)//対称積層の場合
 		{
 			Syokika(Q, i);
 			Syokika(Q, k);
@@ -69,7 +70,7 @@ int main()
 			printf("%d層のh(積層板の厚さ)[mm]: ", i + 1);
 			scanf_s("%lf", &h[i]);
 		}
-		else
+		else//非対称積層の場合
 		{
 			Syokika(Q, i);
 			Q[0][0][i] = E_L / (1 - (nu_LT * nu_TL));
@@ -82,51 +83,38 @@ int main()
 			scanf_s("%lf", &h[i]);
 
 		}
-		if (s == 2)//対称積層の場合
+		// 総積層の厚みを求める
+		if (s == 2)
 		{
 			h[k] = h[i];
 			height_sum += h[i] * 2;
 		}
-		if (s == 1)//非対称積層の場合
+		if (s == 1)
 		{
 			height_sum += h[i];
 		}
 	}
 
+
+	//各積層境界それぞれの座標を与える
 	double height, h_r[100];
-	if (s == 2)
-	{
-		for (i = 0; i < s * n + 1; i++)
-		{
-			if (i == 0)
-			{
-				h_r[i] = -height_sum / 2;
-			}
-			else
-			{
-				h_r[i] = h[i - 1] + h_r[i - 1];
-			}
-			//printf("h_r[%d]: %lf\n", i, h_r[i]);
-		}
 
-	}
-	else
+	for (i = 0; i < s * n + 1; i++)
 	{
-		for (i = 0; i < n + 1; i++)
+		if (i == 0)
 		{
-			if (i == 0)
-			{
-				h_r[i] = -height_sum / 2;
-			}
-			else
-			{
-				h_r[i] = h[i - 1] + h_r[i - 1];
-			}
-		/*	printf("h_r[%d]: %lf\n", i, h_r[i]);*/
+			h_r[i] = -height_sum / 2;
 		}
-
+		else
+		{
+			h_r[i] = h[i - 1] + h_r[i - 1];
+		}
+		//printf("h_r[%d]: %lf\n", i, h_r[i]);
 	}
 
+
+
+	//各積層の角度を与える
 	for (i = 0; i < n; i++)
 	{
 		printf("Theta: ");
@@ -185,123 +173,69 @@ int main()
 
 	}
 
+	//各積層の応力とひずみの関係式の係数行列を求める
+
 	double Q_bar[3][3][100];
-	if (s == 2)
+
+	for (i = 0; i < n * s; i++)
 	{
-		for (i = 0; i < n * s; i++)
-		{
 
-			Syokika(In_plane_stiffness_matrix, i);
-			Syokika(Tensile_bending_coupling_matrix, i);
-			Syokika(Out_of_plane_stiffness_matrix, i);
+		Syokika(In_plane_stiffness_matrix, i);
+		Syokika(Tensile_bending_coupling_matrix, i);
+		Syokika(Out_of_plane_stiffness_matrix, i);
 
-			/*x-y座標系の応力とひずみの関係式の係数行列Q_barを求める*/
+		/*x-y座標系の応力とひずみの関係式の係数行列Q_barを求める*/
 
-			Syokika(Q_bar, i);
-			Stress_Strain(T_sigma, Q, T_epsilon, Q_bar, i);
+		Syokika(Q_bar, i);
+		Stress_Strain(T_sigma, Q, T_epsilon, Q_bar, i);
 
-			/*計算が正しいかチェック
-			double Q_bar_check[3][3], l, m;
-			Syokika(Q_bar_check);
-			l = cos(theta);
-			m = sin(theta);
-			Q_bar_check[0][0] = Q[0][0] * pow(l, 4) + 2 * (Q[0][1] + 2 * Q[2][2]) * pow(l * m, 2) + Q[1][1] * pow(m, 4);
-			Q_bar_check[1][0] = Q_bar_check[0][1] = Q[0][1] * (pow(l, 4) + pow(m, 4)) + (Q[0][0] + Q[1][1] - 4 * Q[2][2]) * pow(l * m, 2);
-			Q_bar_check[1][1] = Q[0][0] * pow(m, 4) + 2 * (Q[0][1] + 2 * Q[2][2]) * pow(l * m, 2) + Q[1][1] * pow(l, 4);
-			Q_bar_check[0][2] = Q_bar_check[2][0] = (Q[0][0] - Q[0][1] - 2 * Q[2][2]) * pow(l, 3) * m - (Q[1][1] - Q[0][1] - 2 * Q[2][2]) * l * pow(m, 3);
-			Q_bar_check[1][2] = Q_bar_check[2][1] = (Q[0][0] - Q[0][1] - 2 * Q[2][2]) * l * pow(m, 3) - (Q[1][1] - Q[0][1] - 2 * Q[2][2]) * m * pow(l, 3);
-			Q_bar_check[2][2] = (Q[0][0] + Q[1][1] - 2 * Q[0][1] - 2 * Q[2][2]) * pow(l * m, 2) + Q[2][2] * (pow(l, 4) + pow(m, 4));
-			Display(Q_bar_check);
-			*///ここまでの計算に間違いはない事を確認しているため、これ以後の計算に何らかの不具合が含まれている。
+		/*計算が正しいかチェック
+		double Q_bar_check[3][3], l, m;
+		Syokika(Q_bar_check);
+		l = cos(theta);
+		m = sin(theta);
+		Q_bar_check[0][0] = Q[0][0] * pow(l, 4) + 2 * (Q[0][1] + 2 * Q[2][2]) * pow(l * m, 2) + Q[1][1] * pow(m, 4);
+		Q_bar_check[1][0] = Q_bar_check[0][1] = Q[0][1] * (pow(l, 4) + pow(m, 4)) + (Q[0][0] + Q[1][1] - 4 * Q[2][2]) * pow(l * m, 2);
+		Q_bar_check[1][1] = Q[0][0] * pow(m, 4) + 2 * (Q[0][1] + 2 * Q[2][2]) * pow(l * m, 2) + Q[1][1] * pow(l, 4);
+		Q_bar_check[0][2] = Q_bar_check[2][0] = (Q[0][0] - Q[0][1] - 2 * Q[2][2]) * pow(l, 3) * m - (Q[1][1] - Q[0][1] - 2 * Q[2][2]) * l * pow(m, 3);
+		Q_bar_check[1][2] = Q_bar_check[2][1] = (Q[0][0] - Q[0][1] - 2 * Q[2][2]) * l * pow(m, 3) - (Q[1][1] - Q[0][1] - 2 * Q[2][2]) * m * pow(l, 3);
+		Q_bar_check[2][2] = (Q[0][0] + Q[1][1] - 2 * Q[0][1] - 2 * Q[2][2]) * pow(l * m, 2) + Q[2][2] * (pow(l, 4) + pow(m, 4));
+		Display(Q_bar_check);
+		*///ここまでの計算に間違いはない事を確認しているため、これ以後の計算に何らかの不具合が含まれている。
 
 
-			/*printf("面内剛性行列[A]を表示\n=====================\n");
-			Display(In_plane_stiffness_matrix);
-			printf("=====================\n");
-			printf("引っ張り-曲げカップリング行列[B]を表示\n=====================\n");
-			Display(Tensile_bending_coupling_matrix);
-			printf("=====================\n");
-			printf("面外剛性行列[D]を表示\n=====================\n");
-			Display(Out_of_plane_stiffness_matrix);
-			printf("=====================\n");*/
+		/*printf("面内剛性行列[A]を表示\n=====================\n");
+		Display(In_plane_stiffness_matrix);
+		printf("=====================\n");
+		printf("引っ張り-曲げカップリング行列[B]を表示\n=====================\n");
+		Display(Tensile_bending_coupling_matrix);
+		printf("=====================\n");
+		printf("面外剛性行列[D]を表示\n=====================\n");
+		Display(Out_of_plane_stiffness_matrix);
+		printf("=====================\n");*/
 
-		}
-	}
-	else
-	{
-		for (i = 0; i < n; i++)
-		{
-
-			Syokika(In_plane_stiffness_matrix, i);
-			Syokika(Tensile_bending_coupling_matrix, i);
-			Syokika(Out_of_plane_stiffness_matrix, i);
-
-			/*x-y座標系の応力とひずみの関係式の係数行列Q_barを求める*/
-
-			Syokika(Q_bar, i);
-			Stress_Strain(T_sigma, Q, T_epsilon, Q_bar, i);
-
-			/*計算が正しいかチェック
-			double Q_bar_check[3][3], l, m;
-			Syokika(Q_bar_check);
-			l = cos(theta);
-			m = sin(theta);
-			Q_bar_check[0][0] = Q[0][0] * pow(l, 4) + 2 * (Q[0][1] + 2 * Q[2][2]) * pow(l * m, 2) + Q[1][1] * pow(m, 4);
-			Q_bar_check[1][0] = Q_bar_check[0][1] = Q[0][1] * (pow(l, 4) + pow(m, 4)) + (Q[0][0] + Q[1][1] - 4 * Q[2][2]) * pow(l * m, 2);
-			Q_bar_check[1][1] = Q[0][0] * pow(m, 4) + 2 * (Q[0][1] + 2 * Q[2][2]) * pow(l * m, 2) + Q[1][1] * pow(l, 4);
-			Q_bar_check[0][2] = Q_bar_check[2][0] = (Q[0][0] - Q[0][1] - 2 * Q[2][2]) * pow(l, 3) * m - (Q[1][1] - Q[0][1] - 2 * Q[2][2]) * l * pow(m, 3);
-			Q_bar_check[1][2] = Q_bar_check[2][1] = (Q[0][0] - Q[0][1] - 2 * Q[2][2]) * l * pow(m, 3) - (Q[1][1] - Q[0][1] - 2 * Q[2][2]) * m * pow(l, 3);
-			Q_bar_check[2][2] = (Q[0][0] + Q[1][1] - 2 * Q[0][1] - 2 * Q[2][2]) * pow(l * m, 2) + Q[2][2] * (pow(l, 4) + pow(m, 4));
-			Display(Q_bar_check);
-			*///ここまでの計算に間違いはない事を確認しているため、これ以後の計算に何らかの不具合が含まれている。
-
-
-			/*printf("面内剛性行列[A]を表示\n=====================\n");
-			Display(In_plane_stiffness_matrix);
-			printf("=====================\n");
-			printf("引っ張り-曲げカップリング行列[B]を表示\n=====================\n");
-			Display(Tensile_bending_coupling_matrix);
-			printf("=====================\n");
-			printf("面外剛性行列[D]を表示\n=====================\n");
-			Display(Out_of_plane_stiffness_matrix);
-			printf("=====================\n");*/
-
-		}
 	}
 
 
-	if (s == 2)
+
+	//各積層の剛性行列を求める
+
+
+	for (i = 0; i < n * s; i++)
 	{
-		for (i = 0; i < n * s; i++)
-		{
-			/*面内剛性行列(In_plane_stiffness_matrix)を求める*/
-			In_plane_stiffness_matrix_function(Q_bar, h_r, In_plane_stiffness_matrix, i);
+		/*面内剛性行列(In_plane_stiffness_matrix)を求める*/
+		In_plane_stiffness_matrix_function(Q_bar, h_r, In_plane_stiffness_matrix, i);
 
-			/*引っ張り-曲げカップリング行列を求める*/
-			Tensile_bending_coupling_matrix_function(Q_bar, h_r, Tensile_bending_coupling_matrix, i);
+		/*引っ張り-曲げカップリング行列を求める*/
+		Tensile_bending_coupling_matrix_function(Q_bar, h_r, Tensile_bending_coupling_matrix, i);
 
-			/*面外剛性行列*/
-			Out_of_plane_stiffness_matrix_function(Q_bar, h_r, Out_of_plane_stiffness_matrix, i);
+		/*面外剛性行列*/
+		Out_of_plane_stiffness_matrix_function(Q_bar, h_r, Out_of_plane_stiffness_matrix, i);
 
-		}
-	}
-	else
-	{
-		for (i = 0; i < n; i++)
-		{
-			/*面内剛性行列(In_plane_stiffness_matrix)を求める*/
-			In_plane_stiffness_matrix_function(Q_bar, h_r, In_plane_stiffness_matrix, i);
-
-			/*引っ張り-曲げカップリング行列を求める*/
-			Tensile_bending_coupling_matrix_function(Q_bar, h_r, Tensile_bending_coupling_matrix, i);
-
-			/*面外剛性行列*/
-			Out_of_plane_stiffness_matrix_function(Q_bar, h_r, Out_of_plane_stiffness_matrix, i);
-
-		}
 	}
 
 
+	//各積層の剛性行列を表示
 	printf("面内剛性行列[A]を表示\n=====================\n");
 	Display(In_plane_stiffness_matrix, 99);
 	printf("=====================\n");
@@ -312,7 +246,7 @@ int main()
 	Display(Out_of_plane_stiffness_matrix, 99);
 	printf("=====================\n");
 
-
+	//各積層の面内剛性行列の特性を表示
 	GyakuGyoretsu(In_plane_stiffness_matrix, 99);
 	printf("面内弾性特性: \n");
 	printf("x方向のヤング率: %lf GPa\n", pow(In_plane_stiffness_matrix[0][0][99], -1) / height_sum);
@@ -321,7 +255,7 @@ int main()
 	printf("y方向のポアソン比: %lf\n", -In_plane_stiffness_matrix[0][1][99] * pow(In_plane_stiffness_matrix[1][1][99], -1));
 	printf("せん断弾性係数: %lf GPa\n", pow(In_plane_stiffness_matrix[2][2][99], -1) / height_sum);
 
-
+	//各積層の面外弾性特性を表示
 	GyakuGyoretsu(Out_of_plane_stiffness_matrix, 99);
 	printf("面外弾性特性: \n");
 	printf("x方向のヤング率: %lf GPa\n", pow(Out_of_plane_stiffness_matrix[0][0][99], -1) * pow(height_sum, -3) * 12);
@@ -341,6 +275,36 @@ int main()
 	Display(C);
 	GyakuGyoretsu(A);
 	Display(A);*/
+
+	//最大応力説の計算//
+	//各積層の応力を求めて、最大応力説で各層が破壊するかどうかを判定する
+	double sigma_x, sigma_y, sigma_L[100], sigma_T[100], tau_LT[100], tau_max, sigma_L_max, sigma_T_max;
+
+	printf("x方向の荷重[N/mm^2]: ");
+	scanf_s("%lf", &sigma_x);
+	printf("y方向の荷重[N/mm^2]: ");
+	scanf_s("%lf", &sigma_y);
+
+	printf("繊維方向強度: ");
+	scanf_s("%lf", &sigma_L_max);
+	printf("繊維直交方向強度: ");
+	scanf_s("%lf", &sigma_T_max);
+	printf("せん断強度: ");
+	scanf_s("%lf", &tau_max);//この辺の情報はhttps://www.m-chemical.co.jp/carbon-fiber/pdf/prepreg/Carbon%20Fiber%20Prepreg20220630%20Japanese.pdfから拾うのがよさげだわ。
+
+
+
+	for (i = 0; i < n * s; i++)//各積層の応力を求める
+	{
+		sigma_L[i] = sigma_x / n / s * pow(cos(theta[i]), 2) + sigma_y / n / s * pow(sin(theta[i]), 2);//繊維方向の応力
+		sigma_T[i] = sigma_x / n / s * pow(sin(theta[i]), 2) - sigma_y / n / s * pow(cos(theta[i]), 2);//繊維直交方向の応力
+		tau_LT[i] = sigma_x / n / s * sin(theta[i]) * cos(theta[i]) - sigma_y / n / s * sin(theta[i]) * cos(theta[i]);//せん断応力
+	}
+
+
+
+	Comparison_of_stress(sigma_x, sigma_y, sigma_L_max, sigma_T_max, tau_max, sigma_L, sigma_T, tau_LT, n, s);
+	return 0;
 
 }
 void Display(double Q[3][3][100], int I)//行列の表示
@@ -608,21 +572,21 @@ void Stress_Strain(double T_sigma[3][3][100], double Q[3][3][100], double T_epsi
 }
 
 
-//下三つでの操作でIに代入可能なのは1からn-1までであることに注意する。
+//下三つでの操作でIに代入可能なのは0からn-1までであることに注意する。
 void In_plane_stiffness_matrix_function(double Q_bar[3][3][100], double Thickness[100], double In_plane_stiffness_matrix[3][3][100], int I)
 {
 	/*面内剛性行列(In_plane_stiffness_matrix)を求める*/
 
-		int i, j;
+	int i, j;
+	{
+		for (i = 0; i < 3; i++)
 		{
-			for (i = 0; i < 3; i++)
+			for (j = 0; j < 3; j++)
 			{
-				for (j = 0; j < 3; j++)
-				{
-					In_plane_stiffness_matrix[i][j][99] += Q_bar[i][j][I] * (Thickness[I + 1] - Thickness[I]);
-				}
+				In_plane_stiffness_matrix[i][j][99] += Q_bar[i][j][I] * (Thickness[I + 1] - Thickness[I]);
 			}
 		}
+	}
 
 }
 
@@ -656,13 +620,24 @@ void Out_of_plane_stiffness_matrix_function(double Q_bar[3][3][100], double Thic
 		}
 	}
 }
-// プログラムの実行: Ctrl + F5 または [デバッグ] > [デバッグなしで開始] メニュー
-// プログラムのデバッグ: F5 または [デバッグ] > [デバッグの開始] メニュー
 
-// 作業を開始するためのヒント: 
-//    1. ソリューション エクスプローラー ウィンドウを使用してファイルを追加/管理します 
-//   2. チーム エクスプローラー ウィンドウを使用してソース管理に接続します
-//   3. 出力ウィンドウを使用して、ビルド出力とその他のメッセージを表示します
-//   4. エラー一覧ウィンドウを使用してエラーを表示します
-//   5. [プロジェクト] > [新しい項目の追加] と移動して新しいコード ファイルを作成するか、[プロジェクト] > [既存の項目の追加] と移動して既存のコード ファイルをプロジェクトに追加します
-//   6. 後ほどこのプロジェクトを再び開く場合、[ファイル] > [開く] > [プロジェクト] と移動して .sln ファイルを選択します
+//各積層について強度と応力を比較し破壊に至るか判定するプログラム。
+void Comparison_of_stress(double sigma_x, double sigma_y, double sigma_max, double sigma_min, double tau_max, double sigma_L[100], double sigma_T[100], double tau_LT[100], int n, int s)
+{
+	int i;
+	for (i = 0; i < n * s; i++)
+	{
+		if (sigma_L[i] / sigma_max > 1)
+		{
+			printf("第%d積層の繊維方向の応力が破壊応力を超えています。\n", i + 1);
+		}
+		if (sigma_T[i] / sigma_min > 1)
+		{
+			printf("第%d積層の繊維直交方向の応力が破壊応力を超えています。\n", i + 1);
+		}
+		if (tau_LT[i] / tau_max > 1)
+		{
+			printf("第%d積層のせん断応力が破壊応力を超えています。\n", i + 1);
+		}
+	}
+}
