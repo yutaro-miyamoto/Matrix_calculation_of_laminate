@@ -41,16 +41,23 @@ int main()
 	printf("疑似当方積層か？Yesなら2,Noなら1を代入せよ :");
 	scanf_s("%d", &s);
 	/*剛性行列[Q]を生成*/
-	printf("E_L(繊維方向の弾性係数): ");//繊維方向の弾性係数
+
+	printf("E_L(繊維方向の弾性係数)[1000kgf/mm2]: ");//繊維方向の弾性係数
 	scanf_s("%lf", &E_L);
-	printf("E_T(繊維直行方向の弾性係数): ");//繊維直行方向の弾性係数
+	E_L = E_L * 9.8;//kgf-N変換
+
+	printf("E_T(繊維直行方向の弾性係数)[1000kgf/mm2]: ");//繊維直行方向の弾性係数
 	scanf_s("%lf", &E_T);
+	E_T = E_T * 9.8;//kgf-N変換
+
 	printf("nu_LT(主ポアソン比): ");//主ポアソン比
 	scanf_s("%lf", &nu_LT);
 	printf("nu_TL(従ポアソン比): ");//従ポアソン比
 	scanf_s("%lf", &nu_TL);
-	printf("G_LT(せん断弾性率): ");//せん断弾性率
+
+	printf("G_LT(せん断弾性率)[1000kgf/mm2]: ");//せん断弾性率
 	scanf_s("%lf", &G_LT);
+	G_LT = G_LT * 9.8;//kgf-N変換
 
 
 	for (i = 0; i < n; i++)//層数分の剛性行列を生成する
@@ -285,23 +292,25 @@ int main()
 	printf("y方向の荷重[N/mm^2]: ");
 	scanf_s("%lf", &sigma_y);
 
-	printf("繊維方向強度: ");
+	printf("0°引っ張り強さ[kgf/mm2]: ");
 	scanf_s("%lf", &sigma_L_max);
-	printf("繊維直交方向強度: ");
-	scanf_s("%lf", &sigma_T_max);
-	printf("せん断強度: ");
-	scanf_s("%lf", &tau_max);//この辺の情報はhttps://www.m-chemical.co.jp/carbon-fiber/pdf/prepreg/Carbon%20Fiber%20Prepreg20220630%20Japanese.pdfから拾うのがよさげだわ。
+	sigma_L_max = sigma_L_max * 9.8;//kgf-N変換
 
+	printf("90°引張強さ[kgf/mm2]: ");
+	scanf_s("%lf", &sigma_T_max);
+	sigma_T_max = sigma_T_max * 9.8;//kgf-N変換
+
+	printf("0°層間剪断強さ[kgf/mm2]: ");
+	scanf_s("%lf", &tau_max);//この辺の情報はhttps://www.m-chemical.co.jp/carbon-fiber/pdf/prepreg/Carbon%20Fiber%20Prepreg20220630%20Japanese.pdfから拾うのがよさげだわ。
+	tau_max = tau_max * 9.8;//kgf-N変換
 
 
 	for (i = 0; i < n * s; i++)//各積層の応力を求める
 	{
-		sigma_L[i] = sigma_x / n / s * pow(cos(theta[i]), 2) + sigma_y / n / s * pow(sin(theta[i]), 2);//繊維方向の応力
-		sigma_T[i] = sigma_x / n / s * pow(sin(theta[i]), 2) - sigma_y / n / s * pow(cos(theta[i]), 2);//繊維直交方向の応力
-		tau_LT[i] = sigma_x / n / s * sin(theta[i]) * cos(theta[i]) - sigma_y / n / s * sin(theta[i]) * cos(theta[i]);//せん断応力
+		sigma_L[i] = fabs(sigma_x / n / s * pow(cos(theta[i]), 2) + sigma_y / n / s * pow(sin(theta[i]), 2));//繊維方向の応力
+		sigma_T[i] = fabs(sigma_x / n / s * pow(sin(theta[i]), 2) - sigma_y / n / s * pow(cos(theta[i]), 2));//繊維直交方向の応力
+		tau_LT[i] = fabs(sigma_x / n / s * sin(theta[i]) * cos(theta[i]) - sigma_y / n / s * sin(theta[i]) * cos(theta[i]));//せん断応力
 	}
-
-
 
 	Comparison_of_stress(sigma_x, sigma_y, sigma_L_max, sigma_T_max, tau_max, sigma_L, sigma_T, tau_LT, n, s);
 	return 0;
@@ -622,16 +631,25 @@ void Out_of_plane_stiffness_matrix_function(double Q_bar[3][3][100], double Thic
 }
 
 //各積層について強度と応力を比較し破壊に至るか判定するプログラム。
-void Comparison_of_stress(double sigma_x, double sigma_y, double sigma_max, double sigma_min, double tau_max, double sigma_L[100], double sigma_T[100], double tau_LT[100], int n, int s)
+void Comparison_of_stress(double sigma_x, double sigma_y, double sigma_L_max, double sigma_T_max, double tau_max, double sigma_L[100], double sigma_T[100], double tau_LT[100], int n, int s)
 {
 	int i;
 	for (i = 0; i < n * s; i++)
 	{
-		if (sigma_L[i] / sigma_max > 1)
+		printf("==================================================\n");
+		printf("第%d積層の繊維方向の安全率は　%lf　です。\n", i + 1, sigma_L_max / sigma_L[i]);
+		printf("第%d積層の繊維直交方向の安全率は　%lf　です。\n", i + 1, sigma_T_max / sigma_T[i]);
+		printf("第%d積層のせん断の安全率は　%lf　です。\n", i + 1, tau_max / tau_LT[i]);
+		printf("==================================================\n");
+	}
+	for (i = 0; i < n * s; i++)
+	{
+
+		if (sigma_L[i] / sigma_L_max > 1)
 		{
 			printf("第%d積層の繊維方向の応力が破壊応力を超えています。\n", i + 1);
 		}
-		if (sigma_T[i] / sigma_min > 1)
+		if (sigma_T[i] / sigma_T_max > 1)
 		{
 			printf("第%d積層の繊維直交方向の応力が破壊応力を超えています。\n", i + 1);
 		}
